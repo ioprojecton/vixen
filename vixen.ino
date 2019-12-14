@@ -1,3 +1,13 @@
+// PURPOSE: VixenLights 3.8 processing with Pullstar8 I2C Servo Motor Board on Arduino UNO
+//          I2C and UART modified functions derived from Peter Fleury`s library.
+// LICENSE: Apache-2.0 (https://www.apache.org/licenses/LICENSE-2.0.txt)
+// 
+//     URL: https://github.com/ioprojecton/vixen
+//
+// HISTORY:
+// Surepic - Original version(12/14/2019)
+// 
+// 
 #include <inttypes.h>
 #include <compat/twi.h>
 #include <stdio.h>
@@ -5,9 +15,7 @@
 #include <avr/interrupt.h>
 
 #ifndef F_CPU
-
 #define F_CPU 16000000UL
-
 #endif
 
 #define UART_BAUD_RATE 115200UL
@@ -26,11 +34,11 @@
 
 #define OLAT 0x0A
 
-#define NOT_READY -1
+#define DELIM 0x3C
 
 #define UART_RX_BUFFER_MASK ( UART_RX_BUFFER_SIZE - 1)
 
-#define UART_RX_BUFFER_SIZE 32
+#define UART_RX_BUFFER_SIZE 16
 
 #define SET_BIT(_byte,_position) (_byte |= 1 << 7 - _position)
 
@@ -53,6 +61,8 @@ static volatile unsigned char UART_RxHead;
 static volatile unsigned char UART_RxTail;
 
 static volatile unsigned char UART_LastRxError;
+
+unsigned char v;
 
 void setup() {
   // put your setup code here, to run once:
@@ -97,13 +107,13 @@ void loop() {
 
   ZERO_OUT(input_buffer);
 
-  unsigned char v = 0;
+  v = 0;
+
+  while ((unsigned char)uart_getc() != DELIM);
 
   for (unsigned char i = 0; i < 8; i++) {
 
-    input_buffer[i] = uart_getc();
-
-    if ((input_buffer[i] & UART_NO_DATA) || (input_buffer[i] & UART_BUFFER_OVERFLOW)) {
+    if ((input_buffer[i] = uart_getc()) & UART_NO_DATA) {
       i--;
       continue;
     }
@@ -130,14 +140,10 @@ ISR (USART_RX_vect)
 
   tmphead = (UART_RxHead + 1) & UART_RX_BUFFER_MASK;
 
-  if (tmphead == UART_RxTail ) lastRxError = UART_BUFFER_OVERFLOW >> 8;
+  UART_RxHead = tmphead;
 
-  else {
+  UART_RxBuf[tmphead] = UDR0;
 
-    UART_RxHead = tmphead;
-
-    UART_RxBuf[tmphead] = UDR0;
-  }
   UART_LastRxError |= lastRxError;
 }
 
